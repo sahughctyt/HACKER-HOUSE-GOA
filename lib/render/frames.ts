@@ -42,10 +42,13 @@ export const FRAME_VARIANTS: { id: FrameVariant; label: string; blurb: string }[
   { id: 'terminal', label: 'THE TERMINAL', blurb: 'Pixel ring · pass number' },
 ];
 
+import type { PhotoFilter } from './filters';
+
 export type FrameInput = {
   img: CanvasImageSource | null;
   placement: Placement;
   seed: string;
+  filter?: PhotoFilter;
   handle?: string;
 };
 
@@ -73,13 +76,14 @@ function photoCircle(
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.clip();
   if (input.img) {
-    drawCover(ctx, input.img, cx - r, cy - r, r * 2, r * 2, input.placement);
+    drawCover(ctx, input.img, cx - r, cy - r, r * 2, r * 2, input.placement, input.filter);
   } else {
     ctx.fillStyle = emptyBg;
     ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
   }
   ctx.restore();
 }
+
 
 /* ------------------------------------------------------------------ */
 /* 01 — THE SEAL                                                       */

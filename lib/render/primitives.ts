@@ -34,11 +34,14 @@ export type Placement = {
   zoom: number;
 };
 
+import { applyFilterToCanvas, type PhotoFilter } from './filters';
+
 export const DEFAULT_PLACEMENT: Placement = { fx: 0.5, fy: 0.42, zoom: 1 };
 
 /**
  * Draws `img` covering the rect. Handles any source aspect ratio — portrait,
  * landscape, square — without distortion, and lets the subject sit off-centre.
+ * Applies photo filters exclusively to the photo bounds.
  */
 export function drawCover(
   ctx: Ctx,
@@ -47,7 +50,8 @@ export function drawCover(
   y: number,
   w: number,
   h: number,
-  p: Placement = DEFAULT_PLACEMENT
+  p: Placement = DEFAULT_PLACEMENT,
+  filter?: PhotoFilter
 ) {
   const iw = imgWidth(img);
   const ih = imgHeight(img);
@@ -63,8 +67,22 @@ export function drawCover(
   const dx = x - clamp(p.fx, 0, 1) * slackX;
   const dy = y - clamp(p.fy, 0, 1) * slackY;
 
+  if (filter && filter !== 'normal' && typeof document !== 'undefined') {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = Math.max(1, Math.round(w));
+    tempCanvas.height = Math.max(1, Math.round(h));
+    const tempCtx = tempCanvas.getContext('2d');
+    if (tempCtx) {
+      tempCtx.drawImage(img, dx - x, dy - y, dw, dh);
+      applyFilterToCanvas(tempCanvas, filter);
+      ctx.drawImage(tempCanvas, x, y, w, h);
+      return;
+    }
+  }
+
   ctx.drawImage(img, dx, dy, dw, dh);
 }
+
 
 export function imgWidth(img: CanvasImageSource): number {
   const a = img as HTMLImageElement & ImageBitmap & HTMLCanvasElement;

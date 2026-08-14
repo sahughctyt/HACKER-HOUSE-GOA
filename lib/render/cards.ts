@@ -41,12 +41,15 @@ import {
   type Placement,
 } from './primitives';
 
+import type { PhotoFilter } from './filters';
+
 export const CARD_W = 1080;
 export const CARD_H = 1350;
 
-export type CardVariant = 'passport' | 'boarding' | 'poster';
+export type CardVariant = 'passport' | 'boarding' | 'poster' | 'badge';
 
 export const CARD_VARIANTS: { id: CardVariant; label: string; blurb: string }[] = [
+  { id: 'badge', label: 'THE BADGE', blurb: 'Lanyard badge · green · gold' },
   { id: 'passport', label: 'THE PASSPORT', blurb: 'Cream · stamped · MRZ' },
   { id: 'boarding', label: 'THE BOARDING PASS', blurb: 'Ticket stub · barcode' },
   { id: 'poster', label: 'THE POSTCARD', blurb: 'Illustrated · beach scrapbook' },
@@ -59,15 +62,18 @@ export type CardInput = {
   name: string;
   role: string;
   title: string;
+  filter?: PhotoFilter;
   handle?: string;
 };
+
 
 export function drawCard(ctx: Ctx, variant: CardVariant, f: Fonts, input: CardInput) {
   ctx.save();
   ctx.clearRect(0, 0, CARD_W, CARD_H);
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
-  if (variant === 'passport') passport(ctx, f, input);
+  if (variant === 'badge') badge(ctx, f, input);
+  else if (variant === 'passport') passport(ctx, f, input);
   else if (variant === 'boarding') boarding(ctx, f, input);
   else poster(ctx, f, input);
   ctx.restore();
@@ -134,7 +140,7 @@ function passport(ctx: Ctx, f: Fonts, input: CardInput) {
   roundRect(ctx, px, py, pw, ph, 12);
   ctx.clip();
   if (input.img) {
-    drawCover(ctx, input.img, px, py, pw, ph, input.placement);
+    drawCover(ctx, input.img, px, py, pw, ph, input.placement, input.filter);
     // Light hand — a passport photo should still look like a photo.
     duotone(ctx, px, py, pw, ph, '#12301E', '#FFF6DC', 0.42);
   } else {
@@ -310,7 +316,7 @@ function boarding(ctx: Ctx, f: Fonts, input: CardInput) {
   roundRect(ctx, px, py, pw, ph, 18);
   ctx.clip();
   if (input.img) {
-    drawCover(ctx, input.img, px, py, pw, ph, input.placement);
+    drawCover(ctx, input.img, px, py, pw, ph, input.placement, input.filter);
   } else {
     ctx.fillStyle = C.greenDark;
     ctx.fillRect(px, py, pw, ph);
@@ -643,7 +649,7 @@ function poster(ctx: Ctx, f: Fonts, input: CardInput) {
   ctx.arc(PCX, PCY, PR, 0, Math.PI * 2);
   ctx.clip();
   if (input.img) {
-    drawCover(ctx, input.img, PCX - PR, PCY - PR, PR * 2, PR * 2, input.placement);
+    drawCover(ctx, input.img, PCX - PR, PCY - PR, PR * 2, PR * 2, input.placement, input.filter);
   } else {
     ctx.fillStyle = C.creamDim;
     ctx.fillRect(PCX - PR, PCY - PR, PR * 2, PR * 2);
@@ -791,4 +797,235 @@ function poster(ctx: Ctx, f: Fonts, input: CardInput) {
   });
 
   grain(ctx, 0, 0, W, H, 0.035);
+}
+
+/* ------------------------------------------------------------------ */
+/* 04 — THE BADGE                                                       */
+/* Lanyard badge card inspired by real HH Goa badge photo. Green body, */
+/* gold diamond-notch border, photo well, beach strip, name/role/QR.   */
+/* ------------------------------------------------------------------ */
+function badge(ctx: Ctx, f: Fonts, input: CardInput) {
+  const W = CARD_W;
+  const H = CARD_H;
+  const pass = passNumber(input.seed);
+  const rng = new Rng(`bg:${input.seed}`);
+
+  /* ── Background: deep forest green ────────────────────────────────── */
+  ctx.fillStyle = C.green;
+  ctx.fillRect(0, 0, W, H);
+
+  /* Subtle texture: low-opacity halftone dots */
+  halftone(ctx, 0, 0, W, H, 36, withAlpha(C.greenDeep, 0.35), 2.6, 'down');
+
+  /* ── Outer gold border with notched diamond corners ─────────────── */
+  const M = 44;
+  const BR = 38;
+  ctx.strokeStyle = C.yellow;
+  ctx.lineWidth = 9;
+  roundRect(ctx, M, M, W - M * 2, H - M * 2, BR);
+  ctx.stroke();
+
+  // Inner gold hairline border
+  ctx.strokeStyle = withAlpha(C.yellow, 0.48);
+  ctx.lineWidth = 2.5;
+  roundRect(ctx, M + 14, M + 14, W - (M + 14) * 2, H - (M + 14) * 2, BR - 8);
+  ctx.stroke();
+
+  // Diamond corner accents
+  const drawCornerDiamond = (cx: number, cy: number) => {
+    const S = 16;
+    ctx.save();
+    ctx.fillStyle = C.yellow;
+    ctx.translate(cx, cy);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillRect(-S / 2, -S / 2, S, S);
+    ctx.restore();
+  };
+  drawCornerDiamond(M, M);
+  drawCornerDiamond(W - M, M);
+  drawCornerDiamond(M, H - M);
+  drawCornerDiamond(W - M, H - M);
+
+  /* ── Header: HACKER HOUSE + Hindi ───────────────────────────────── */
+  const headerY = M + 94;
+
+  ctx.font = `900 72px ${f.display}`;
+  const hhW = ctx.measureText('HACKER HOUSE').width;
+  const hhX = (W - hhW) / 2;
+
+  // Shadow / depth layer
+  ctx.fillStyle = withAlpha(C.greenDeep, 0.5);
+  ctx.fillText('HACKER HOUSE', hhX + 3, headerY + 3);
+
+  ctx.fillStyle = C.cream;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('HACKER HOUSE', hhX, headerY);
+
+  // Gold underline
+  ctx.fillStyle = C.yellow;
+  ctx.fillRect(hhX, headerY + 12, hhW, 5);
+
+  // Hindi "गोवा" — on its own line, centred, smaller size so it never overlaps
+  ctx.font = `700 52px ${f.hindi}`;
+  ctx.fillStyle = C.yellow;
+  ctx.textAlign = 'center';
+  ctx.fillText(EVENT.hindi, W / 2, headerY + 62);
+  ctx.textAlign = 'left';
+
+  /* ── Date + Tagline ─────────────────────────────────────────────── */
+  // dateY anchored below the Hindi subtitle (headerY + 62) + small gap
+  const dateY = headerY + 96;
+  ctx.font = `600 28px ${f.mono}`;
+  ctx.fillStyle = C.yellow;
+  ctx.textAlign = 'center';
+  tracked(ctx, `GOA, INDIA  ·  ${EVENT.dates}`, W / 2, dateY, 3.5, 'center');
+
+  ctx.font = `700 24px ${f.mono}`;
+  ctx.fillStyle = withAlpha(C.cream, 0.82);
+  tracked(ctx, EVENT.tagline, W / 2, dateY + 38, 4.2, 'center');
+  ctx.textAlign = 'left';
+
+  /* ── Separator dashed rule ──────────────────────────────────────── */
+  const sepY = dateY + 62;
+  dashedLine(ctx, M + 44, sepY, W - M - 44, sepY, withAlpha(C.yellow, 0.55), 3, [10, 8]);
+
+  /* ── Photo well ─────────────────────────────────────────────────── */
+  const pw = W - (M + 52) * 2;
+  // 0.62 ratio keeps photo square-ish while leaving ~340px for name/role/QR below
+  const ph = Math.round(pw * 0.52);
+  const px = (W - pw) / 2;
+  const py = sepY + 22;
+
+  // Gold border frame
+  ctx.strokeStyle = C.yellow;
+  ctx.lineWidth = 7;
+  roundRect(ctx, px - 7, py - 7, pw + 14, ph + 14, 20);
+  ctx.stroke();
+
+  // Photo (clipped)
+  ctx.save();
+  roundRect(ctx, px, py, pw, ph, 14);
+  ctx.clip();
+  if (input.img) {
+    drawCover(ctx, input.img, px, py, pw, ph, input.placement, input.filter);
+  } else {
+    ctx.fillStyle = C.greenDark;
+    ctx.fillRect(px, py, pw, ph);
+    ctx.fillStyle = withAlpha(C.cream, 0.55);
+    ctx.font = `600 42px ${f.mono}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Upload Your Photo', W / 2, py + ph / 2 - 26);
+    ctx.fillText('in Panel', W / 2, py + ph / 2 + 26);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  }
+  ctx.restore();
+
+  /* ── Beach illustration strip at bottom of photo well ─────────── */
+  const stripH = 160;
+  const stripY = py + ph - stripH;
+
+  ctx.save();
+  roundRect(ctx, px, py, pw, ph, 14);
+  ctx.clip();
+
+  const stripGrad = ctx.createLinearGradient(px, stripY, px, py + ph);
+  stripGrad.addColorStop(0, 'rgba(11,104,57,0)');
+  stripGrad.addColorStop(0.28, 'rgba(11,104,57,0.78)');
+  stripGrad.addColorStop(1, 'rgba(8,56,31,0.96)');
+  ctx.fillStyle = stripGrad;
+  ctx.fillRect(px, stripY, pw, stripH);
+
+  // Sandy beach hill curve
+  ctx.fillStyle = '#D4A96A';
+  ctx.beginPath();
+  ctx.moveTo(px, py + ph);
+  ctx.quadraticCurveTo(px + pw * 0.25, stripY + 68, px + pw * 0.5, stripY + 90);
+  ctx.quadraticCurveTo(px + pw * 0.75, stripY + 108, px + pw, stripY + 60);
+  ctx.lineTo(px + pw, py + ph);
+  ctx.closePath();
+  ctx.fill();
+
+  waveLine(ctx, px + 20, stripY + 102, pw - 40, 6, withAlpha('#BFE1E8', 0.7), 3.5, 8);
+
+  palmTree(ctx, px + 90, py + ph - 10, 130,
+    { trunk: '#5A3210', frond: '#0B4A28', coconut: '#3A2412' }, -0.08, 6);
+  palmTree(ctx, px + pw - 70, py + ph - 10, 118,
+    { trunk: '#5A3210', frond: '#0B4A28', coconut: '#3A2412' }, 0.12, 5);
+  palmTree(ctx, px + pw * 0.42, py + ph - 8, 90,
+    { trunk: '#5A3210', frond: '#084D2A', coconut: '#3A2412' }, 0.04, 5);
+
+  goanHouse(ctx, px + pw * 0.68, py + ph - 14, 80, 100, {
+    wall: '#E8C07A',
+    roof: C.greenDeep,
+    trim: C.yellow,
+    window: '#BFE1E8',
+  });
+
+  scooter(ctx, px + pw * 0.22, py + ph - 18, 80,
+    { body: C.yellow, trim: C.greenDeep, wheel: C.greenDeep });
+
+  sparkle(ctx, px + pw * 0.55, stripY + 50, 12, C.yellow);
+  sparkle(ctx, px + 38, stripY + 38, 10, withAlpha(C.cream, 0.8));
+
+  ctx.restore();
+
+  /* ── Info block below the photo well ────────────────────────────── */
+  const infoY = py + ph + 28;
+
+  // Bold name in a gold-outlined pill
+  const namePillH = 76;
+  ctx.strokeStyle = C.yellow;
+  ctx.lineWidth = 4;
+  roundRect(ctx, M + 44, infoY, W - (M + 44) * 2, namePillH, namePillH / 2);
+  ctx.stroke();
+
+  ctx.fillStyle = C.yellow;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const nameText = (input.name || 'YOUR NAME').toUpperCase();
+  const nameSize = fitText(ctx, nameText, W - (M + 44) * 2 - 60, 56,
+    (s) => `900 ${s}px ${f.display}`, 28);
+  ctx.font = `900 ${nameSize}px ${f.display}`;
+  ctx.fillText(nameText, W / 2, infoY + namePillH / 2);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  // Role subtitle
+  const roleY = infoY + namePillH + 22;
+  ctx.fillStyle = withAlpha(C.cream, 0.9);
+  ctx.font = `400 32px ${f.mono}`;
+  ctx.textAlign = 'center';
+  ctx.fillText(input.role || 'Builder', W / 2, roleY);
+  ctx.textAlign = 'left';
+
+  /* ── Bottom row: Pass number pill + QR ──────────────────────────── */
+  const bottomY = roleY + 36;
+  const pillH = 52;
+  const pillW = 280;
+  ctx.fillStyle = C.yellow;
+  roundRect(ctx, M + 44, bottomY, pillW, pillH, pillH / 2);
+  ctx.fill();
+  ctx.fillStyle = C.greenDeep;
+  ctx.font = `700 26px ${f.mono}`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  tracked(ctx, `NO. ${pass}`, M + 44 + pillW / 2, bottomY + pillH / 2, 2.5, 'center');
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  const qrSize = 112;
+  fauxQr(ctx, W - M - 44 - qrSize, bottomY - 10, qrSize, C.cream, C.greenDeep, input.seed);
+
+  /* ── Decorative sparkle + star accents ──────────────────────────── */
+  sparkle(ctx, M + 80, sepY - 24, 12, C.pink);
+  sparkle(ctx, W - M - 80, sepY - 24, 14, C.yellow);
+  star6(ctx, M + 58, infoY + namePillH + 12, 11,
+    withAlpha(C.pink, rng.range(0.65, 1)));
+  star6(ctx, W - M - 58, infoY + namePillH + 12, 11,
+    withAlpha(C.yellow, rng.range(0.65, 1)));
+
+  grain(ctx, 0, 0, W, H, 0.04);
 }
