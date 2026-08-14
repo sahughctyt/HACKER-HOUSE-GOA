@@ -19,6 +19,8 @@ import {
   type Design,
   type Format,
 } from '@/lib/render';
+import { PHOTO_FILTERS, type PhotoFilter } from '@/lib/render/filters';
+import { ThreeDCardViewer } from '@/app/components/ThreeDCardViewer';
 import { renderOgBanner } from '@/lib/render/og';
 import { tweetText, xIntentUrl } from '@/lib/shareText';
 
@@ -28,11 +30,14 @@ export default function Page() {
   const [photo, setPhoto] = useState<LoadedPhoto | null>(null);
   const [format, setFormat] = useState<Format>('card');
   const [frameVariant, setFrameVariant] = useState<FrameVariant>('seal');
-  const [cardVariant, setCardVariant] = useState<CardVariant>('passport');
+  const [cardVariant, setCardVariant] = useState<CardVariant>('badge');
   const [seed, setSeed] = useState('goa2026');
   const [name, setName] = useState('');
   const [role, setRole] = useState('');
   const [title, setTitle] = useState(() => titleFor('goa2026'));
+  const [socials, setSocials] = useState('');
+  const [filter, setFilter] = useState<PhotoFilter>('normal');
+  const [viewMode, setViewMode] = useState<'3d' | '2d'>('3d');
   const [placement, setPlacement] = useState<Placement>(DEFAULT_PLACEMENT);
 
   const [decoding, setDecoding] = useState(false);
@@ -44,14 +49,19 @@ export default function Page() {
   const [dragOver, setDragOver] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
   const [pasteKey, setPasteKey] = useState('Ctrl+V');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const design: Design = useMemo(
-    () => ({ format, frameVariant, cardVariant, seed, name, role, title, placement }),
-    [format, frameVariant, cardVariant, seed, name, role, title, placement]
+    () => ({ format, frameVariant, cardVariant, seed, name, role, title, placement, filter }),
+    [format, frameVariant, cardVariant, seed, name, role, title, placement, filter]
   );
 
   /* ---------------- fonts ---------------- */
@@ -96,7 +106,7 @@ export default function Page() {
     if (!photo && !fontsReady) return;
     const id = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(id);
-  }, [draw, photo, fontsReady]);
+  }, [draw, photo, fontsReady, viewMode]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -394,31 +404,70 @@ export default function Page() {
           {/* ---------------- stage ---------------- */}
           <div className="stage-col">
             <div className="panel">
-              <h2>
-                <span className="step">
-                  <b>01</b> YOUR PHOTO
-                </span>
-              </h2>
+              <div className="stage-header">
+                <h2>
+                  <span className="step">
+                    <b>01</b> PREVIEW & PHOTO
+                  </span>
+                </h2>
+                {format === 'card' && (
+                  <div className="mode-toggle-group">
+                    <button
+                      type="button"
+                      className={`mode-btn ${viewMode === '3d' ? 'active' : ''}`}
+                      onClick={() => setViewMode('3d')}
+                    >
+                      3D CARD
+                    </button>
+                    <button
+                      type="button"
+                      className={`mode-btn ${viewMode === '2d' ? 'active' : ''}`}
+                      onClick={() => setViewMode('2d')}
+                    >
+                      2D CARD
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <p className="hint">
                 JPG, PNG, WEBP or iPhone HEIC. Drag the photo to reposition — no need to crop
                 it first.
               </p>
 
-              <div
-                ref={stageRef}
-                className={`stage${photo ? '' : ' empty'}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  accept(e.dataTransfer.files?.[0]);
-                }}
-              >
-                {photo ? (
+              {!photo && format === 'card' && viewMode === '3d' && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ width: '100%', marginBottom: 12, padding: '12px', fontSize: 12, fontWeight: 900 }}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  📷 UPLOAD YOUR PHOTO
+                </button>
+              )}
+
+              {format === 'card' && viewMode === '3d' ? (
+                <ThreeDCardViewer
+                  design={design}
+                  photo={photo}
+                  onUploadClick={() => fileRef.current?.click()}
+                />
+              ) : (
+
+                <div
+                  ref={stageRef}
+                  className={`stage${photo ? '' : ' empty'}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    accept(e.dataTransfer.files?.[0]);
+                  }}
+                >
                   <canvas
                     ref={canvasRef}
                     onPointerDown={onPointerDown}
@@ -428,23 +477,24 @@ export default function Page() {
                     onWheel={onWheel}
                     aria-label="Your generated HH Goa 2026 graphic"
                   />
-                ) : (
-                  <button
-                    type="button"
-                    className={`dropzone${dragOver ? ' over' : ''}`}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    <span className="sparkle">✦</span>
-                    <span className="big serif">Drop your photo</span>
-                    <span className="small">
-                      TAP TO UPLOAD · JPG / PNG / WEBP / HEIC
-                      <br />
-                      OR PASTE FROM CLIPBOARD
-                    </span>
-                  </button>
-                )}
-                {decoding && <div className="busy">DECODING PHOTO…</div>}
-              </div>
+                  {!photo && (
+                    <button
+                      type="button"
+                      className={`dropzone${dragOver ? ' over' : ''}`}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <span className="sparkle">✦</span>
+                      <span className="big serif">Drop your photo</span>
+                      <span className="small">
+                        TAP TO UPLOAD · JPG / PNG / WEBP / HEIC
+                        <br />
+                        OR PASTE FROM CLIPBOARD
+                      </span>
+                    </button>
+                  )}
+                  {decoding && <div className="busy">DECODING PHOTO…</div>}
+                </div>
+              )}
 
               <input
                 ref={fileRef}
@@ -523,12 +573,11 @@ export default function Page() {
             <div className="panel">
               <h2>
                 <span className="step">
-                  <b>03</b> STYLE
+                  <b>03</b> STYLE & FILTERS
                 </span>
               </h2>
               <p className="hint">
-                Three looks per format. Every upload picks one at random — hit shuffle for
-                another roll.
+                Choose card style and apply aesthetic photo filters.
               </p>
               <div className="styles">
                 {variants.map((v) => (
@@ -548,6 +597,26 @@ export default function Page() {
                   </button>
                 ))}
               </div>
+
+              {/* Photo Filter Selection */}
+              <div className="filter-section">
+                <label className="filter-label">
+                  PHOTO FILTERS
+                </label>
+                <div className="filter-grid">
+                  {PHOTO_FILTERS.map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      className={`filter-btn ${filter === f.id ? 'active' : ''}`}
+                      onClick={() => setFilter(f.id)}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <button
                 type="button"
                 className="btn btn-ghost"
@@ -558,47 +627,56 @@ export default function Page() {
               </button>
             </div>
 
-            {format === 'card' && (
-              <div className="panel">
+            {format === 'card' && mounted && (
+              <div className="panel" suppressHydrationWarning>
                 <h2>
                   <span className="step">
                     <b>04</b> YOUR DETAILS
                   </span>
                 </h2>
-                <div className="fields">
-                  <div className="field">
+                <div className="fields" suppressHydrationWarning>
+                  <div className="field" suppressHydrationWarning>
                     <label htmlFor="name">Name</label>
                     <input
                       id="name"
                       value={name}
                       maxLength={26}
                       placeholder="Dev Dubey"
+                      autoComplete="off"
+                      data-lpignore="true"
+                      suppressHydrationWarning
                       onChange={(e) => {
                         setName(e.target.value);
                         setShareUrl('');
                       }}
                     />
                   </div>
-                  <div className="field">
+                  <div className="field" suppressHydrationWarning>
                     <label htmlFor="role">Stack / Role</label>
                     <input
                       id="role"
                       value={role}
                       maxLength={28}
                       placeholder="AI / Fullstack"
+                      autoComplete="off"
+                      data-lpignore="true"
+                      suppressHydrationWarning
                       onChange={(e) => {
                         setRole(e.target.value);
                         setShareUrl('');
                       }}
                     />
                   </div>
-                  <div className="field">
+                  <div className="field" suppressHydrationWarning>
                     <label htmlFor="title">Builder title</label>
-                    <div className="with-btn">
+                    <div className="with-btn" suppressHydrationWarning>
                       <input
                         id="title"
                         value={title}
                         maxLength={26}
+                        autoComplete="off"
+                        data-lpignore="true"
+                        suppressHydrationWarning
                         onChange={(e) => {
                           setTitle(e.target.value.toUpperCase());
                           setShareUrl('');
@@ -615,7 +693,23 @@ export default function Page() {
                       </button>
                     </div>
                   </div>
+                  <div className="field" suppressHydrationWarning>
+                    <label htmlFor="socials">Socials link</label>
+                    <input
+                      id="socials"
+                      value={socials}
+                      placeholder="https://x.com/yourhandle"
+                      autoComplete="off"
+                      data-lpignore="true"
+                      suppressHydrationWarning
+                      onChange={(e) => {
+                        setSocials(e.target.value);
+                        setShareUrl('');
+                      }}
+                    />
+                  </div>
                 </div>
+
               </div>
             )}
 

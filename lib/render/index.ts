@@ -5,6 +5,7 @@ import { ensureFontsReady, readFonts } from '../brand';
 import { CARD_H, CARD_W, drawCard, type CardInput, type CardVariant } from './cards';
 import { FRAME_SIZE, drawFrame, type FrameInput, type FrameVariant } from './frames';
 import type { Ctx, Placement } from './primitives';
+import { applyFilterToCanvas, type PhotoFilter } from './filters';
 
 export type Format = 'frame' | 'card';
 
@@ -17,6 +18,7 @@ export type Design = {
   role: string;
   title: string;
   placement: Placement;
+  filter?: PhotoFilter;
 };
 
 export function designSize(format: Format) {
@@ -43,6 +45,7 @@ export function paint(
       img,
       placement: design.placement,
       seed: design.seed,
+      filter: design.filter,
     };
     drawFrame(ctx, design.frameVariant, fonts, input);
   } else {
@@ -53,11 +56,13 @@ export function paint(
       name: design.name,
       role: design.role,
       title: design.title,
+      filter: design.filter,
     };
     drawCard(ctx, design.cardVariant, fonts, input);
   }
   ctx.restore();
 }
+
 
 /** Full-resolution export. `scale` of 2 gives a 2160px-wide file. */
 export async function renderToCanvas(
